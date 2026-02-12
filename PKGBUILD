@@ -17,6 +17,7 @@ sha256sums=('SKIP')
 pkgver() {
   cd "$_pkgname"
   local ver=$(git log -1 --format="%cd.g%h" --date=format:"%Y.%-m.%-d")
+  echo "$ver"
 }
 
 prepare() {
