@@ -81,15 +81,21 @@ pub fn init(container: &gtk4::Box) {
     });
 
     std::thread::spawn(move || {
+        let mut retry_interval = Duration::from_secs(0); // Start immediately
         loop {
+            // Wait for retry interval OR refresh signal
+            let _ = refresh_rx.recv_timeout(retry_interval);
+
             let update = fetch_weather();
-            if let Ok(u) = update {
-                let _ = tx.send(u);
+            match update {
+                Ok(u) => {
+                    let _ = tx.send(u);
+                    retry_interval = Duration::from_secs(900); // Success, wait 15 mins
+                }
+                Err(_) => {
+                    retry_interval = Duration::from_secs(15); // Failure/Timeout, retry in 15s
+                }
             }
-            // Wait for 15 mins OR refresh signal
-            // recv_timeout returns Err(Timeout) if timeout expires, looking like a fresh start
-            // or Ok(_) on manual refresh, also triggering a fresh loop
-            let _ = refresh_rx.recv_timeout(Duration::from_secs(900));
         }
     });
 }
@@ -130,7 +136,9 @@ fn fetch_weather() -> Result<WeatherUpdate, Box<dyn std::error::Error>> {
     let location = if ip_out.contains("192.168.10") { "Cartagena" } else { "Murcia" };
 
     let url = format!("https://wttr.in/{}?format=j1", location);
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()?;
     let res = client.get(url).send()?.json::<Value>()?;
 
     let current = &res["current_condition"][0];

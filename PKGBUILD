@@ -1,7 +1,7 @@
 # Maintainer: p4block <https://github.com/p4block>
 pkgname=vibebar-p4-git
 _pkgname=vibebar-p4
-pkgver=0.1.3.r12.g7a2b3c4
+pkgver=2026.2.12.ga003d92
 pkgrel=1
 pkgdesc="A purely vibe-coded status bar for personal use, built with Rust and GTK4."
 arch=('x86_64')
@@ -16,7 +16,7 @@ sha256sums=('SKIP')
 
 pkgver() {
   cd "$_pkgname"
-  echo "0.1.3.r12.g7a2b3c4"
+  local ver=$(git log -1 --format="%cd.g%h" --date=format:"%Y.%-m.%-d")
 }
 
 prepare() {
