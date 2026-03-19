@@ -153,7 +153,8 @@ fn fetch_weather() -> Result<WeatherUpdate, Box<dyn std::error::Error>> {
     let emoji = get_emoji(code);
     let text = format!("{}  {}°", emoji, temp);
 
-    let mut tooltip = format!("<tt><b>{} {}°</b>\n", desc, temp);
+    let city_name = location.split(',').next().unwrap_or(location).trim();
+    let mut tooltip = format!("<tt><b>{} {}° @ {}</b>\n", desc, temp, city_name);
     tooltip.push_str(&format!("Feels like: {}°\n", feels));
     tooltip.push_str(&format!("Wind: {}Km/h\n", wind));
     tooltip.push_str(&format!("Humidity: {}%\n", humidity));
