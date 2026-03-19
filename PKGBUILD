@@ -1,7 +1,7 @@
 # Maintainer: p4block <https://github.com/p4block>
 pkgname=vibebar-p4-git
 _pkgname=vibebar-p4
-pkgver=2026.3.19.g10fce2e
+pkgver=2026.3.19.g0ea20ae
 pkgrel=1
 pkgdesc="A purely vibe-coded status bar for personal use, built with Rust and GTK4."
 arch=('x86_64')
