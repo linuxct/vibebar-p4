@@ -140,8 +140,9 @@ fn fetch_weather() -> Result<WeatherUpdate, Box<dyn std::error::Error>> {
         .timeout(Duration::from_secs(10))
         .build()?;
     let res = client.get(url).send()?.json::<Value>()?;
+    let data = res.get("data").unwrap_or(&res);
 
-    let current = &res["current_condition"][0];
+    let current = &data["current_condition"][0];
     let code = current["weatherCode"].as_str().unwrap_or("");
     let temp = current["temp_C"].as_str().unwrap_or("?");
     let desc = current["weatherDesc"][0]["value"].as_str().unwrap_or("");
@@ -159,7 +160,7 @@ fn fetch_weather() -> Result<WeatherUpdate, Box<dyn std::error::Error>> {
 
     let now_hour = chrono::Local::now().hour() as i32;
 
-    if let Some(days) = res["weather"].as_array() {
+    if let Some(days) = data["weather"].as_array() {
         for (i, day) in days.iter().enumerate().take(3) {
             let date = day["date"].as_str().unwrap_or("");
             let max = day["maxtempC"].as_str().unwrap_or("?");
