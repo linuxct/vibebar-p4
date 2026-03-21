@@ -120,3 +120,7 @@ button:hover {
         color: #fb4934;
     }
 }
+
+#volume-btn.volume-warning {
+    color: #fb4934;
+}

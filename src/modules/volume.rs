@@ -41,11 +41,16 @@ pub fn init(container: &gtk4::Box) {
             .spawn();
     });
 
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(String, i32)>();
     let b = btn.clone();
     gtk4::glib::MainContext::default().spawn_local(async move {
-        while let Some(vol) = rx.recv().await {
+        while let Some((vol, perc)) = rx.recv().await {
             b.set_label(&vol);
+            if perc >= 101 {
+                b.add_css_class("volume-warning");
+            } else {
+                b.remove_css_class("volume-warning");
+            }
         }
     });
 
@@ -96,7 +101,7 @@ pub fn init(container: &gtk4::Box) {
                             let perc = (vol as f64 / 65536.0 * 100.0).round() as i32;
                             let muted = sink_info.mute;
                             let icon = if muted { "" } else { "" };
-                            let _ = tx_innermost.send(format!("{}  {}%", icon, perc));
+                            let _ = tx_innermost.send((format!("{}  {}%", icon, perc), perc));
                         }
                     });
                 }
