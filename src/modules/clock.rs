@@ -59,7 +59,7 @@ fn get_calendar_markup() -> String {
         
         for col in 0..3 {
             let month = (row * 3 + col + 1) as u32;
-            let month_date = now.with_month(month).unwrap().with_day(1).unwrap();
+            let month_date = now.with_day(1).unwrap().with_month(month).unwrap();
             let month_name = month_date.format("%B").to_string();
             
             // Month Header
