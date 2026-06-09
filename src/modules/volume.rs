@@ -23,8 +23,12 @@ pub fn init(container: &gtk4::Box) {
 
     let popover_label = Label::builder()
         .use_markup(true)
+        .margin_start(10)
+        .margin_end(10)
+        .margin_top(10)
+        .margin_bottom(10)
+        .halign(gtk4::Align::Start)
         .build();
-    popover_label.set_widget_name("popover-label");
     popover.set_child(Some(&popover_label));
 
     let motion_controller = EventControllerMotion::new();
@@ -128,11 +132,11 @@ pub fn init(container: &gtk4::Box) {
                             let perc = (vol as f64 / 65536.0 * 100.0).round() as i32;
                             let muted = sink_info.mute;
                             let icon = if muted { "" } else { "" };
-                            let mut tooltip = sink_info.description.as_deref().unwrap_or("Unknown Sink").to_string();
+                            let mut tooltip = format!("<b>{}</b>", sink_info.description.as_deref().unwrap_or("Unknown Sink"));
                             
                             if let Some(api) = sink_info.proplist.get_str("device.api") {
                                 if api == "bluez5" {
-                                    tooltip.push_str("\n<span size='small'><i>Bluetooth Device</i>");
+                                    tooltip.push_str("\n<i>Bluetooth Device</i>");
                                     
                                     if let Some(codec) = sink_info.proplist.get_str("api.bluez5.codec") {
                                         tooltip.push_str(&format!("\nCodec: {}", codec));
@@ -156,7 +160,6 @@ pub fn init(container: &gtk4::Box) {
                                             }
                                         }
                                     }
-                                    tooltip.push_str("</span>");
                                 }
                             }
                             
