@@ -1,5 +1,5 @@
 use gtk4::prelude::*;
-use gtk4::{Button, EventControllerScroll, EventControllerScrollFlags};
+use gtk4::{Button, EventControllerScroll, EventControllerScrollFlags, Popover, PositionType, EventControllerMotion, Label};
 use pulse::mainloop::standard::Mainloop;
 use pulse::context::{Context, FlagSet as ContextFlagSet};
 use pulse::context::subscribe::{Facility, InterestMaskSet};
@@ -12,6 +12,31 @@ pub fn init(container: &gtk4::Box) {
         .build();
     btn.set_widget_name("volume-btn");
     container.append(&btn);
+
+    let popover = Popover::builder()
+        .position(PositionType::Top)
+        .autohide(false)
+        .has_arrow(true)
+        .build();
+    popover.set_parent(&btn);
+    popover.set_pointing_to(Some(&gtk4::gdk::Rectangle::new(0, 0, 100, 1)));
+
+    let popover_label = Label::builder()
+        .use_markup(true)
+        .build();
+    popover_label.set_widget_name("popover-label");
+    popover.set_child(Some(&popover_label));
+
+    let motion_controller = EventControllerMotion::new();
+    let p_enter = popover.clone();
+    motion_controller.connect_enter(move |_, _, _| {
+        p_enter.popup();
+    });
+    let p_leave = popover.clone();
+    motion_controller.connect_leave(move |_| {
+        p_leave.popdown();
+    });
+    btn.add_controller(motion_controller);
 
     let scroll = EventControllerScroll::new(EventControllerScrollFlags::VERTICAL);
     btn.add_controller(scroll.clone());
@@ -41,11 +66,13 @@ pub fn init(container: &gtk4::Box) {
             .spawn();
     });
 
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(String, i32)>();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(String, i32, String)>();
     let b = btn.clone();
+    let pl = popover_label.clone();
     gtk4::glib::MainContext::default().spawn_local(async move {
-        while let Some((vol, perc)) = rx.recv().await {
+        while let Some((vol, perc, tooltip)) = rx.recv().await {
             b.set_label(&vol);
+            pl.set_markup(&tooltip);
             if perc >= 101 {
                 b.add_css_class("volume-warning");
             } else {
@@ -101,7 +128,8 @@ pub fn init(container: &gtk4::Box) {
                             let perc = (vol as f64 / 65536.0 * 100.0).round() as i32;
                             let muted = sink_info.mute;
                             let icon = if muted { "" } else { "" };
-                            let _ = tx_innermost.send((format!("{}  {}%", icon, perc), perc));
+                            let tooltip = sink_info.description.as_deref().unwrap_or("Unknown Sink").to_string();
+                            let _ = tx_innermost.send((format!("{}  {}%", icon, perc), perc, tooltip));
                         }
                     });
                 }
