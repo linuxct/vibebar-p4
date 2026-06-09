@@ -31,9 +31,41 @@ pub fn init(container: &gtk4::Box) {
         .build();
     popover.set_child(Some(&popover_label));
 
+    let state_hover = Rc::new(RefCell::new(None::<(String, Option<String>)>));
+    let state_tokio = state_hover.clone();
+
     let motion_controller = EventControllerMotion::new();
     let p_enter = popover.clone();
+    let pl_enter = popover_label.clone();
+    let sh_enter = state_hover.clone();
+    
     motion_controller.connect_enter(move |_, _, _| {
+        if let Some((base_tooltip, bluez_path)) = sh_enter.borrow().clone() {
+            let pl = pl_enter.clone();
+            if let Some(path) = bluez_path {
+                gtk4::glib::MainContext::default().spawn_local(async move {
+                    let mut full_tooltip = base_tooltip;
+                    if let Ok(conn) = zbus::Connection::system().await {
+                        if let Ok(props) = zbus::fdo::PropertiesProxy::builder(&conn)
+                            .destination("org.bluez").unwrap()
+                            .path(path.as_str()).unwrap()
+                            .build()
+                            .await {
+                            if let Ok(iface) = zbus::names::InterfaceName::try_from("org.bluez.Battery1") {
+                                if let Ok(v) = props.get(iface, "Percentage").await {
+                                    if let Ok(batt) = u8::try_from(v) {
+                                        full_tooltip.push_str(&format!("\nBattery: {}%", batt));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    pl.set_markup(&full_tooltip);
+                });
+            } else {
+                pl.set_markup(&base_tooltip);
+            }
+        }
         p_enter.popup();
     });
     let p_leave = popover.clone();
@@ -70,13 +102,34 @@ pub fn init(container: &gtk4::Box) {
             .spawn();
     });
 
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(String, i32, String)>();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(String, i32, String, Option<String>)>();
     let b = btn.clone();
     let pl = popover_label.clone();
     gtk4::glib::MainContext::default().spawn_local(async move {
-        while let Some((vol, perc, tooltip)) = rx.recv().await {
+        let conn_res = zbus::Connection::system().await;
+        while let Some((vol, perc, base_tooltip, bluez_path)) = rx.recv().await {
+            *state_tokio.borrow_mut() = Some((base_tooltip.clone(), bluez_path.clone()));
+            
+            let mut full_tooltip = base_tooltip.clone();
+            if let Some(path) = bluez_path {
+                if let Ok(ref conn) = conn_res {
+                    if let Ok(props) = zbus::fdo::PropertiesProxy::builder(conn)
+                        .destination("org.bluez").unwrap()
+                        .path(path.as_str()).unwrap()
+                        .build()
+                        .await {
+                        if let Ok(iface) = zbus::names::InterfaceName::try_from("org.bluez.Battery1") {
+                            if let Ok(v) = props.get(iface, "Percentage").await {
+                                if let Ok(batt) = u8::try_from(v) {
+                                    full_tooltip.push_str(&format!("\nBattery: {}%", batt));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             b.set_label(&vol);
-            pl.set_markup(&tooltip);
+            pl.set_markup(&full_tooltip);
             if perc >= 101 {
                 b.add_css_class("volume-warning");
             } else {
@@ -133,6 +186,7 @@ pub fn init(container: &gtk4::Box) {
                             let muted = sink_info.mute;
                             let icon = if muted { "" } else { "" };
                             let mut tooltip = format!("<b>{}</b>", sink_info.description.as_deref().unwrap_or("Unknown Sink"));
+                            let mut bluez_path = None;
                             
                             if let Some(api) = sink_info.proplist.get_str("device.api") {
                                 if api == "bluez5" {
@@ -142,28 +196,11 @@ pub fn init(container: &gtk4::Box) {
                                         tooltip.push_str(&format!("\nCodec: {}", codec));
                                     }
                                     
-                                    if let Some(mac) = sink_info.proplist.get_str("device.string") {
-                                        if let Ok(output) = std::process::Command::new("bluetoothctl")
-                                            .arg("info")
-                                            .arg(&mac)
-                                            .output() {
-                                            let out_str = String::from_utf8_lossy(&output.stdout);
-                                            for line in out_str.lines() {
-                                                if line.contains("Battery Percentage:") {
-                                                    if let Some(start) = line.find('(') {
-                                                        if let Some(end) = line.find(')') {
-                                                            let perc = &line[start + 1..end];
-                                                            tooltip.push_str(&format!("\nBattery: {}%", perc));
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                                    bluez_path = sink_info.proplist.get_str("api.bluez5.path");
                                 }
                             }
                             
-                            let _ = tx_innermost.send((format!("{}  {}%", icon, perc), perc, tooltip));
+                            let _ = tx_innermost.send((format!("{}  {}%", icon, perc), perc, tooltip, bluez_path));
                         }
                     });
                 }
