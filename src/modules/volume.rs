@@ -128,7 +128,38 @@ pub fn init(container: &gtk4::Box) {
                             let perc = (vol as f64 / 65536.0 * 100.0).round() as i32;
                             let muted = sink_info.mute;
                             let icon = if muted { "" } else { "" };
-                            let tooltip = sink_info.description.as_deref().unwrap_or("Unknown Sink").to_string();
+                            let mut tooltip = sink_info.description.as_deref().unwrap_or("Unknown Sink").to_string();
+                            
+                            if let Some(api) = sink_info.proplist.get_str("device.api") {
+                                if api == "bluez5" {
+                                    tooltip.push_str("\n<span size='small'><i>Bluetooth Device</i>");
+                                    
+                                    if let Some(codec) = sink_info.proplist.get_str("api.bluez5.codec") {
+                                        tooltip.push_str(&format!("\nCodec: {}", codec));
+                                    }
+                                    
+                                    if let Some(mac) = sink_info.proplist.get_str("device.string") {
+                                        if let Ok(output) = std::process::Command::new("bluetoothctl")
+                                            .arg("info")
+                                            .arg(&mac)
+                                            .output() {
+                                            let out_str = String::from_utf8_lossy(&output.stdout);
+                                            for line in out_str.lines() {
+                                                if line.contains("Battery Percentage:") {
+                                                    if let Some(start) = line.find('(') {
+                                                        if let Some(end) = line.find(')') {
+                                                            let perc = &line[start + 1..end];
+                                                            tooltip.push_str(&format!("\nBattery: {}%", perc));
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    tooltip.push_str("</span>");
+                                }
+                            }
+                            
                             let _ = tx_innermost.send((format!("{}  {}%", icon, perc), perc, tooltip));
                         }
                     });
